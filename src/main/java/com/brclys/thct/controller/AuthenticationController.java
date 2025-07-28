@@ -1,70 +1,59 @@
 package com.brclys.thct.controller;
 
 
-import com.brclys.thct.model.UserEntity;
+import com.brclys.thct.dto.UserLoginDto;
 import com.brclys.thct.repository.UserRepository;
 import com.brclys.thct.security.JwtUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.authentication.*;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.logging.Logger;
+import static com.brclys.thct.AppConstants.API_BASE_URL;
+import static com.brclys.thct.AppConstants.AUTH_URL_BASE;
 
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping(API_BASE_URL + AUTH_URL_BASE)
 public class AuthenticationController {
     @Autowired
-    AuthenticationManager authenticationManager;
+    private AuthenticationManager authenticationManager;
     @Autowired
-    UserRepository userRepository;
+    private UserRepository userRepository;
     @Autowired
-    PasswordEncoder encoder;
+    private PasswordEncoder encoder;
     @Autowired
-    JwtUtils jwtUtils;
+    private JwtUtils jwtUtils;
 
-    Logger logger = Logger.getLogger(AuthenticationController.class.getName());
+    Logger logger = LoggerFactory.getLogger(AuthenticationController.class);
 
+    /**
+     * Authenticates a user with the provided login credentials.
+     *
+     * @param user the login credentials of the user
+     * @return a JWT token if authentication is successful
+     */
     @PostMapping("/login")
     @ResponseStatus(HttpStatus.OK)
-    public String authenticateUser(@RequestBody UserEntity user) {
+    public String authenticateUser(@RequestBody UserLoginDto user) {
+        logger.warn("Login for " + user.getUsername());
+        logger.warn(encoder.encode(user.getPassword()));
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         user.getUsername(),
-                        //user.getPassword()
-                        encoder.encode(user.getPassword())
+                        user.getPassword()
+                        // encoder.encode(user.getPassword())
                 )
         );
-        logger.warning(encoder.encode(user.getPassword()));
+        logger.warn(">>>>>" + encoder.encode(user.getPassword()));
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         return jwtUtils.generateToken(userDetails.getUsername());
     }
 
-    @PostMapping("/register")
-    @ResponseStatus(HttpStatus.OK)
-    public String registerUser(@RequestBody UserEntity user) {
-        if (userRepository.existsByUsername(user.getUsername())) {
-            return "Error: Username unavailable";
-        }
-        // Create new user's account
-        UserEntity newUser = new UserEntity(
-                null,
-                user.getUsername(),
-                encoder.encode(user.getPassword())
-        );
-        userRepository.save(newUser);
-        return "User registration complete.";
-    }
-
-    @GetMapping("/getUserId/{userName}")
-    @ResponseStatus(HttpStatus.OK)
-    public Long showUsers(@PathVariable("userName") String userName) {
-        UserEntity userEntity = userRepository.findByUsername(userName);
-        return userEntity.getId();
-    }
 }

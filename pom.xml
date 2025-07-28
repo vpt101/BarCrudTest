@@ -28,6 +28,10 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<src.dir>src/main/java</src.dir>
+		<test.src.dir>src/test/java</test.src.dir>
+		<resources.dir>src/main/resources</resources.dir>
+		<test.resources.dir>src/test/resources</test.resources.dir>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -91,7 +95,16 @@
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
 			<version>2.8.9</version>
 		</dependency>
-
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!--<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-ui</artifactId>
+			<version>1.7.0</version>
+		</dependency>-->
 	</dependencies>
 
 	<build>

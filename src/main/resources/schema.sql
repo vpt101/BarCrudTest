@@ -1,5 +1,49 @@
-create table if not exists users (
-id serial primary key,
-username varchar(255) not null,
-password varchar(255) not null
-);
+select 1
+---- User table
+--CREATE TABLE users (
+--    id VARCHAR(36) PRIMARY KEY,
+--    username VARCHAR(50) NOT NULL UNIQUE,
+--    email VARCHAR(100) NOT NULL UNIQUE,
+--    password VARCHAR(255) NOT NULL,
+--    created_timestamp TIMESTAMP WITH TIME ZONE NOT NULL
+--);
+--CREATE TABLE address (
+--    id VARCHAR(36) PRIMARY KEY,
+--    line1 VARCHAR(255) NOT NULL,
+--    line2 VARCHAR(255),
+--    line3 VARCHAR(255),
+--    town VARCHAR(255) NOT NULL,
+--    county VARCHAR(255) NOT NULL,
+--    postcode VARCHAR(255) NOT NULL
+--);
+--
+--
+---- BankAccount table
+--CREATE TABLE bank_accounts (
+--    id VARCHAR(36) PRIMARY KEY,
+--    account_number VARCHAR(20) NOT NULL UNIQUE,
+--    sort_code VARCHAR(10) NOT NULL,
+--    balance DOUBLE NOT NULL CHECK (balance >= 0.0),
+--    created_timestamp TIMESTAMP WITH TIME ZONE NOT NULL
+--);
+--
+--CREATE TABLE user_bank_account (
+--    user_id VARCHAR(36) NOT NULL,
+--    bank_account_id VARCHAR(36) NOT NULL,
+--    PRIMARY KEY (user_id, bank_account_id),
+--    CONSTRAINT fk_uba_user FOREIGN KEY (user_id) REFERENCES users(id),
+--    CONSTRAINT fk_uba_bank_account FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id)
+--);
+---- Transaction table
+--CREATE TABLE transactions (
+--    id VARCHAR(36) PRIMARY KEY,
+--    amount DOUBLE NOT NULL CHECK (amount >= 0.0 AND amount <= 10000.0),
+--    currency VARCHAR(10) NOT NULL,
+--    type VARCHAR(20) NOT NULL,
+--    reference VARCHAR(255),
+--    user_id VARCHAR(36),
+--    bank_account_id VARCHAR(36) NOT NULL,
+--    created_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+--    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id),
+--    CONSTRAINT fk_bank_account FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id)
+--);
