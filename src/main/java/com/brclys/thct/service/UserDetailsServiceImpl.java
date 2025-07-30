@@ -20,9 +20,6 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         com.brclys.thct.entity.User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new EntityNotFoundException(String.format("User %s not found", username)));
-
-
-
         return new User(
                 user.getUsername(),
                 user.getPassword(),
