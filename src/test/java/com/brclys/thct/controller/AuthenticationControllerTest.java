@@ -2,7 +2,7 @@ package com.brclys.thct.controller;
 
 import com.brclys.thct.dto.UserLoginDto;
 import com.brclys.thct.repository.UserRepository;
-import com.brclys.thct.security.JwtUtils;
+import com.brclys.thct.security.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,7 +17,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Collections;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,7 +41,7 @@ class AuthenticationControllerTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private JwtUtils jwtUtils;
+    private JwtUtil jwtUtil;
 
     @InjectMocks
     private AuthenticationController authenticationController;
@@ -65,7 +64,7 @@ class AuthenticationControllerTest {
         when(authenticationManager.authenticate(any()))
                 .thenReturn(authentication);
         when(authentication.getPrincipal()).thenReturn(userDetails);
-        when(jwtUtils.generateToken(TEST_USERNAME)).thenReturn(TEST_JWT);
+        when(jwtUtil.generateToken(TEST_USERNAME)).thenReturn(TEST_JWT);
         when(passwordEncoder.encode(TEST_PASSWORD)).thenReturn("encodedPassword");
 
         String token = authenticationController.authenticateUser(userLoginDto);
@@ -73,7 +72,7 @@ class AuthenticationControllerTest {
         assertNotNull(token);
         assertEquals(TEST_JWT, token);
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
-        verify(jwtUtils).generateToken(TEST_USERNAME);
+        verify(jwtUtil).generateToken(TEST_USERNAME);
     }
 
 }

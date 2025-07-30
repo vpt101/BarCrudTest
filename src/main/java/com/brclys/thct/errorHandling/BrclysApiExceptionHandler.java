@@ -1,6 +1,9 @@
 package com.brclys.thct.errorHandling;
 
+import com.brclys.thct.openApiGenSrc.model.ErrorResponse;
 import jakarta.persistence.EntityNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
@@ -10,7 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
@@ -19,6 +21,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @ControllerAdvice
 public class BrclysApiExceptionHandler extends ResponseEntityExceptionHandler {
+    Logger logger = LoggerFactory.getLogger(BrclysApiExceptionHandler.class);
 
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex,
@@ -30,33 +33,22 @@ public class BrclysApiExceptionHandler extends ResponseEntityExceptionHandler {
         return buildResponseEntity(new BrclysRestApiError(HttpStatus.BAD_REQUEST, error, ex));
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    protected ResponseEntity<Object> handleBadRequest(
-            IllegalArgumentException ex) {
-        BrclysRestApiError brclysRestApiError = new BrclysRestApiError(HttpStatus.BAD_REQUEST);
-        brclysRestApiError.setMessage(ex.getMessage());
-        return buildResponseEntity(brclysRestApiError);
-    }
-
-    @ExceptionHandler(EntityNotFoundException.class)
-    protected ResponseEntity<Object> handleEntityNotFound(
-            EntityNotFoundException ex) {
-        BrclysRestApiError brclysRestApiError = new BrclysRestApiError(NOT_FOUND);
-        brclysRestApiError.setMessage(ex.getMessage());
-        return buildResponseEntity(brclysRestApiError);
-    }
 
     @ExceptionHandler(RuntimeException.class)
     protected ResponseEntity<Object> handleRuntimeException(
             RuntimeException ex) {
         BrclysRestApiError brclysRestApiError = new BrclysRestApiError(HttpStatus.INTERNAL_SERVER_ERROR);
-        brclysRestApiError.setMessage(ex.getMessage());
+        String supportErrorUuid = java.util.UUID.randomUUID().toString();
+        logger.error("Runtime Exception Occurred: {}; Support Error Message Id: {}", supportErrorUuid, ex.getMessage(),
+                ex);
+        brclysRestApiError.setMessage("Error Occurred. If this problem persists, please contact support with error message id: " + supportErrorUuid);
         return buildResponseEntity(brclysRestApiError);
     }
 
 
     private ResponseEntity<Object> buildResponseEntity(BrclysRestApiError brclysRestApiError) {
-        return new ResponseEntity<>(brclysRestApiError, brclysRestApiError.getStatus());
+        ErrorResponse errorResponse = new ErrorResponse(brclysRestApiError.getMessage());
+        return new ResponseEntity<>(errorResponse, brclysRestApiError.getStatus());
     }
 
 }

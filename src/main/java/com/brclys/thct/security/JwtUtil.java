@@ -13,14 +13,14 @@ import java.util.Date;
 
 
 @Component
-public class JwtUtils {
+public class JwtUtil {
 
     @Value("${jwt.secret}")
     private String jwtSecret;
     @Value("${jwt.expiration}")
     private int jwtExpirationMs;
     private SecretKey key;
-    Logger logger = LoggerFactory.getLogger(JwtUtils.class);
+    Logger logger = LoggerFactory.getLogger(JwtUtil.class);
 
     @PostConstruct
     public void init() {

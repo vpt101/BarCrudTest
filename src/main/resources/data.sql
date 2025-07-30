@@ -1,9 +1,6 @@
 select 1
---INSERT INTO users (id, username, email, password, created_timestamp)
---VALUES ('1e2d3c4b-5a6f-7e8d-9c0b-1a2b3c4d5e6f', 'jdoe', 'jdoe@example.com', 'hashedpassword123', CURRENT_TIMESTAMP);
---
---INSERT INTO address (id, line1, line2, line3, town, county, postcode)
---VALUES ('a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', '123 Main St', 'Apt 4B', NULL, 'Springfield', 'Essex', 'SP1 2AB');
+--INSERT INTO users (id, username, email, password, created_timestamp, line1, line2, line3, town, county, postcode, phone_number, updated_timestamp)
+--VALUES ('1e2d3c4b-5a6f-7e8d-9c0b-1a2b3c4d5e6f', 'v', 'v@v.com', '$2a$10$U0mMDAhm34cKi2p.ofc5Y.R46DwYShw7HRjZ4T25B.gaCd0hRqHbe', CURRENT_TIMESTAMP, '123 Main St', 'Apt 4B', NULL, 'Springfield', 'Essex', 'SP1 2AB', '11556654433221', CURRENT_TIMESTAMP);
 --
 --INSERT INTO bank_accounts (id, account_number, sort_code, balance, created_timestamp)
 --VALUES ('b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e', '12345678', '12-34-56', 2500.00, CURRENT_TIMESTAMP);

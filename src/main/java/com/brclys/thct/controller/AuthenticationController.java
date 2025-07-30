@@ -3,7 +3,7 @@ package com.brclys.thct.controller;
 
 import com.brclys.thct.dto.UserLoginDto;
 import com.brclys.thct.repository.UserRepository;
-import com.brclys.thct.security.JwtUtils;
+import com.brclys.thct.security.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,7 +29,7 @@ public class AuthenticationController {
     @Autowired
     private PasswordEncoder encoder;
     @Autowired
-    private JwtUtils jwtUtils;
+    private JwtUtil jwtUtil;
 
     Logger logger = LoggerFactory.getLogger(AuthenticationController.class);
 
@@ -48,12 +48,10 @@ public class AuthenticationController {
                 new UsernamePasswordAuthenticationToken(
                         user.getUsername(),
                         user.getPassword()
-                        // encoder.encode(user.getPassword())
                 )
         );
-        logger.warn(">>>>>" + encoder.encode(user.getPassword()));
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        return jwtUtils.generateToken(userDetails.getUsername());
+        return jwtUtil.generateToken(userDetails.getUsername());
     }
 
 }

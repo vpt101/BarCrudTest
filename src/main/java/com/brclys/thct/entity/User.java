@@ -1,6 +1,7 @@
 package com.brclys.thct.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Pattern;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -18,7 +19,7 @@ import java.util.Set;
 @NoArgsConstructor
 public class User {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    // @Pattern(regexp = "^usr-[A-Za-z0-9\\-]$")
     private String id;
 
     @Column(nullable = false, unique = true, length = 50)
@@ -33,7 +34,7 @@ public class User {
     @Embedded
     private Address address;
 
-    @Column// (nullable = false)
+    @Column
     private String phoneNumber;
 
     @ManyToMany
@@ -45,11 +46,11 @@ public class User {
     private Set<BankAccount> bankAccounts;
 
     @CreationTimestamp
-    @Column// (nullable = false)
+    @Column
     private OffsetDateTime createdTimestamp;
 
     @UpdateTimestamp
-    @Column// (nullable = false)
+    @Column
     private OffsetDateTime updatedTimestamp;
 
     @PrePersist
@@ -57,6 +58,10 @@ public class User {
     protected void onCreateOrUpdate() {
         if (this.createdTimestamp == null) { this.createdTimestamp =  OffsetDateTime.now(); }
         if (this.updatedTimestamp == null) { this.updatedTimestamp =  OffsetDateTime.now(); }
+        if (this.id == null) {
+            this.id = "usr-" + java.util.UUID.randomUUID().toString().replaceAll("-", "");
+        }
+
     }
 
 }

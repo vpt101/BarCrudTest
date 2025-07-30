@@ -21,7 +21,7 @@ import java.io.IOException;
 @Component
 public class AuthenticationTokenFilter extends OncePerRequestFilter {
     @Autowired
-    private JwtUtils jwtUtils;
+    private JwtUtil jwtUtil;
     @Autowired
     private UserDetailsService userDetailsService;
     Logger logger = LoggerFactory.getLogger(AuthenticationTokenFilter.class);
@@ -34,9 +34,9 @@ public class AuthenticationTokenFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
         try {
             String jwt = parseJwt(request);
-            logger.warn("Parsed: " + jwt + jwtUtils.validateJwtToken(jwt));
-            if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
-                String username = jwtUtils.getUsernameFromToken(jwt);
+            logger.debug("Parsed: " + jwt + jwtUtil.validateJwtToken(jwt));
+            if (jwt != null && jwtUtil.validateJwtToken(jwt)) {
+                String username = jwtUtil.getUsernameFromToken(jwt);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
@@ -54,9 +54,9 @@ public class AuthenticationTokenFilter extends OncePerRequestFilter {
     }
     private String parseJwt(HttpServletRequest request) {
         String headerAuth = request.getHeader(AppConstants.AUTHORIZATION_HEADER);
-        logger.warn(headerAuth);
+        logger.debug(headerAuth);
         if (headerAuth != null && headerAuth.startsWith(AppConstants.BEARER_TOKEN)) {
-            logger.warn("username from headerAuth: {}", headerAuth.substring(7));
+            logger.debug("username from headerAuth: {}", headerAuth.substring(7));
             return headerAuth.substring(7);
         }
         return null;

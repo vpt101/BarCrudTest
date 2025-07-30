@@ -17,7 +17,6 @@ import java.time.OffsetDateTime;
 @Setter
 public class Transaction {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
     @Column(nullable = false, precision = 10, scale = 2)
@@ -43,4 +42,11 @@ public class Transaction {
 
     @Column(nullable = false)
     private OffsetDateTime createdTimestamp;
+
+    @PrePersist
+    public void onCreate() {
+        if (this.id == null) {
+            this.id = "tan-" + java.util.UUID.randomUUID().toString().replaceAll("-", "");
+        }
+    }
 }
