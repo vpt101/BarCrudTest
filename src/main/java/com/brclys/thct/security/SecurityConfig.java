@@ -55,6 +55,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.ignoringRequestMatchers(H2_CONSOLE_CSRF_URL,
                         AppConstants.API_BASE_URL + AppConstants.AUTH_URL_BASE + "/**",
                         AppConstants.API_BASE_URL + "/users",
+                        AppConstants.API_BASE_URL + "/users/**",
                         AppConstants.API_BASE_URL + AppConstants.ACCOUNTS_BASE_URL + "/**"))
                 .headers(headers -> headers.frameOptions((HeadersConfigurer.FrameOptionsConfig::sameOrigin)))
                 .cors(AbstractHttpConfigurer::disable) // Disable CORS (or configure if needed)
