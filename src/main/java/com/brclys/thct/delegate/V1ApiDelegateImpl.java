@@ -1,6 +1,7 @@
 package com.brclys.thct.delegate;
 
 import com.brclys.thct.delegate.exception.UnauthorizedAccessAttemptedException;
+import com.brclys.thct.entity.Address;
 import com.brclys.thct.entity.BankAccount;
 import com.brclys.thct.entity.User;
 import com.brclys.thct.mapper.UserMapper;
@@ -160,4 +161,109 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
                 .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
     }
 
+    @Override
+    @Transactional
+    public ResponseEntity<UserResponse> updateUserByID(String userId, UpdateUserRequest updateUserRequest) {
+        // Verify user exists and has permission
+        String usernameFromToken = jwtUtil.getUsernameFromToken(getBearerAuth());
+        User loggedInUser = userRepository.findByUsername(usernameFromToken)
+            .orElseThrow(() -> new UsernameNotFoundException("Logged in user not found"));
+            
+        if (!loggedInUser.getId().equals(userId)) {
+            throw new UnauthorizedAccessAttemptedException(
+                String.format("User %s is not authorized to update user %s", usernameFromToken, userId));
+        }
+        
+        // Find the user to update
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
+        
+        // Update fields if they are provided in the request
+        if (updateUserRequest.getName() != null) {
+            user.setUsername(updateUserRequest.getName());
+        }
+        
+        if (updateUserRequest.getEmail() != null) {
+            // Check if email is already taken by another user
+            userRepository.findByEmail(updateUserRequest.getEmail())
+                .filter(u -> !u.getId().equals(userId))
+                .ifPresent(u -> {
+                    throw new IllegalArgumentException("Email is already in use by another user");
+                });
+            user.setEmail(updateUserRequest.getEmail());
+        }
+        
+        if (updateUserRequest.getPhoneNumber() != null) {
+            user.setPhoneNumber(updateUserRequest.getPhoneNumber());
+        }
+        
+        // Update address if provided
+        if (updateUserRequest.getAddress() != null) {
+            if (user.getAddress() == null) {
+                user.setAddress(new Address());
+            }
+            if (updateUserRequest.getAddress().getLine1() != null) {
+                user.getAddress().setLine1(updateUserRequest.getAddress().getLine1());
+            }
+            if (updateUserRequest.getAddress().getLine2() != null) {
+                user.getAddress().setLine2(updateUserRequest.getAddress().getLine2());
+            }
+            if (updateUserRequest.getAddress().getTown() != null) {
+                user.getAddress().setTown(updateUserRequest.getAddress().getTown());
+            }
+            if (updateUserRequest.getAddress().getPostcode() != null) {
+                user.getAddress().setPostcode(updateUserRequest.getAddress().getPostcode());
+            }
+
+        }
+        
+        user.setUpdatedTimestamp(OffsetDateTime.now());
+        User updatedUser = userRepository.save(user);
+        
+        return ResponseEntity.ok(userMapper.toResponse(updatedUser));
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<BankAccountResponse> updateAccountByAccountNumber(
+            String accountNumber, 
+            UpdateBankAccountRequest updateBankAccountRequest) {
+        
+        // Get the current user from the token
+        String username = jwtUtil.getUsernameFromToken(getBearerAuth());
+        logger.warn(">>>>>>>>User {} is updating account {}", username, accountNumber);
+        User user = userRepository.findByUsername(username)
+            .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
+        // Find the bank account and verify the user has access to it
+        logger.warn(">>>>>>>>User {} has id {}", username, user.getId());
+        BankAccount bankAccount = bankAccountRepository.findByAccountNumberAndUsersIn(accountNumber, Collections.singletonList(user))
+            .orElseThrow(() -> new RuntimeException("Bank account not found with number: " + accountNumber));
+        Set<User> users = bankAccount.getUsers();
+
+        if (updateBankAccountRequest.getName() != null) {
+            bankAccount.setName(updateBankAccountRequest.getName());
+        }
+        
+        if (updateBankAccountRequest.getAccountType() != null) {
+            // In a real app, you might have logic to handle different account types
+            // For now, we'll just log it as we don't have a direct mapping in the entity
+            logger.debug("Account type update requested to: {}", updateBankAccountRequest.getAccountType());
+        }
+        
+        bankAccount.setUpdatedTimestamp(OffsetDateTime.now());
+        BankAccount updatedAccount = bankAccountRepository.save(bankAccount);
+        
+        // Convert to response DTO
+        BankAccountResponse response = new BankAccountResponse()
+            .accountNumber(updatedAccount.getAccountNumber())
+            .sortCode(BankAccountResponse.SortCodeEnum.fromValue(updatedAccount.getSortCode()))
+            .name(updatedAccount.getName())
+            .balance(updatedAccount.getBalance().doubleValue())
+            .currency(BankAccountResponse.CurrencyEnum.GBP)
+            .accountType(BankAccountResponse.AccountTypeEnum.PERSONAL) // Default for now
+            .createdTimestamp(updatedAccount.getCreatedTimestamp())
+            .updatedTimestamp(updatedAccount.getUpdatedTimestamp());
+            
+        return ResponseEntity.ok(response);
+    }
 }

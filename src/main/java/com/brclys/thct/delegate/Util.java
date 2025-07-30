@@ -11,7 +11,7 @@ public class Util {
 
     public static String generateAccountNumber() {
         // Generate 8-digit account number
-        return generateRandomNumber(8);
+        return "01" + generateRandomNumber(6);
     }
 
     public static String generateSortCode() {
