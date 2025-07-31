@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import com.brclys.thct.entity.BankAccount;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, String> {

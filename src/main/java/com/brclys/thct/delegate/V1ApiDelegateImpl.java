@@ -10,7 +10,6 @@ import com.brclys.thct.repository.BankAccountRepository;
 import com.brclys.thct.repository.TransactionRepository;
 import com.brclys.thct.repository.UserRepository;
 import com.brclys.thct.security.JwtUtil;
-import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,7 +54,7 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
 
     @Override
     @Transactional
-    // Not tested manually
+
     public ResponseEntity<BankAccountResponse> createAccount(CreateBankAccountRequest createBankAccountRequest) {
         String token = getBearerAuth();
         String username = jwtUtil.getUsernameFromToken(token);
@@ -134,6 +133,7 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
 
     @Override
     @Transactional
+    // Partially tested manually
     public ResponseEntity<Void> deleteUserByID(String userId) {
         try {
             String usernameFromToken = jwtUtil.getUsernameFromToken(getBearerAuth());
@@ -150,7 +150,8 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
                     .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.NOT_FOUND,
                             String.format("UserId (%s) not found", userId)));
 
-            if (userToDelete.getBankAccounts() != null && !userToDelete.getBankAccounts().isEmpty()) {
+            List<BankAccount> bankAccounts = bankAccountRepository.findDistinctByUsersIn(Stream.of(userToDelete).map(User::getId).toList());
+            if (bankAccounts != null && !bankAccounts.isEmpty()) {
                 throw new BrclysApiException(BrclysApiErrorType.BAD_REQUEST,
                         String.format("User %s has bank accounts and cannot be deleted", userId));
             }
@@ -175,6 +176,7 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
         return false;
     }
 
+    // Partially tested
     @Override
     @Transactional(readOnly = true)
     public ResponseEntity<ListTransactionsResponse> listAccountTransaction(String accountNumber) {
@@ -184,51 +186,45 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
             User currentUser = userRepository.findByUsername(username)
                     .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.NOT_FOUND, String.format("Username (%s) not found", username)));
 
-            // Find the bank account and verify the user has access to it
-            BankAccount bankAccount = bankAccountRepository.findByAccountNumber(accountNumber)
-                    .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.NOT_FOUND, String.format("Bank account not found with account number: %s", accountNumber)));
-
-
-            // Check if the current user is an owner of the account
-            boolean isOwner = bankAccount.getUsers().stream()
-                    .anyMatch(user -> user.getId().equals(currentUser.getId()));
-
-            if (!isOwner && !isAdmin(currentUser)) {
-                throw new BrclysApiException(BrclysApiErrorType.FORBIDDEN,
-                        String.format("User %s is not authorized to view transactions for account %s",
-                                username, accountNumber));
-            }
-
-            // Get all transactions for this account
-            List<Transaction> transactions = transactionRepository.findByBankAccountOrderByCreatedTimestampDesc(bankAccount);
-
-            // Convert to response DTOs
-            List<TransactionResponse> transactionResponses = transactions.stream()
-                    .map(tx -> new TransactionResponse()
-                            .id(tx.getId())
-                            .amount(tx.getAmount().doubleValue())
-                            .currency(TransactionResponse.CurrencyEnum.fromValue(tx.getCurrency()))
-                            .type(TransactionResponse.TypeEnum.fromValue(tx.getType().toString()))
-                            .reference(tx.getReference())
-                            .userId(tx.getUser().getId())
-                            .createdTimestamp(tx.getCreatedTimestamp()))
-                    .collect(Collectors.toList());
-
-            // Create and return the response
-            ListTransactionsResponse response = new ListTransactionsResponse();
-            response.setTransactions(transactionResponses);
-
-            return ResponseEntity.ok(response);
+            List<Transaction> transactions = transactionRepository.findByBankAccountOrderByCreatedTimestampDesc(
+                    bankAccountRepository.findByAccountNumberAndUsersIn(accountNumber, Stream.of(currentUser).toList())
+                            .orElseGet(() -> {
+                                if (isAdmin(currentUser)) {
+                                    return bankAccountRepository.findByAccountNumber(accountNumber)
+                                            .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.NOT_FOUND, String.format("Account %s not found", accountNumber)));
+                                } else {
+                                    throw new BrclysApiException(BrclysApiErrorType.FORBIDDEN, String.format("User %s is not authorized to view transactions for account %s", username, accountNumber));
+                                }
+                            }));
+            return ResponseEntity.ok(buildListOfTTransactionResponses(transactions));
         } catch (BrclysApiException e) {
             logger.warn("Error retrieving transactions: {}", e.getMessage());
             throw e;
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             logger.error("Error retrieving transactions: {}", e.getMessage(), e);
             throw new RuntimeException("An error occurred while retrieving transactions", e);
         }
     }
 
+    private static ListTransactionsResponse buildListOfTTransactionResponses(List<Transaction> transactions) {
+        List<TransactionResponse> transactionResponses = transactions.stream()
+                .map(tx -> new TransactionResponse()
+                        .id(tx.getId())
+                        .amount(tx.getAmount().doubleValue())
+                        .currency(TransactionResponse.CurrencyEnum.fromValue(tx.getCurrency()))
+                        .type(TransactionResponse.TypeEnum.fromValue(tx.getType().toString().toLowerCase()))
+                        .reference(tx.getReference())
+                        .userId(tx.getUser().getId())
+                        .createdTimestamp(tx.getCreatedTimestamp()))
+                .collect(Collectors.toList());
+
+        // Create and return the response
+        ListTransactionsResponse response = new ListTransactionsResponse();
+        response.setTransactions(transactionResponses);
+        return response;
+    }
+
+    // Not tested manually
     @Override
     @Transactional
     public ResponseEntity<TransactionResponse> createTransaction(String accountNumber, CreateTransactionRequest createTransactionRequest) {
@@ -238,77 +234,39 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
             User currentUser = userRepository.findByUsername(username)
                     .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.NOT_FOUND, String.format("Username (%s) not found", username)));
 
-            // Find the bank account and verify the user has access to it
-            BankAccount bankAccount = bankAccountRepository.findByAccountNumber(accountNumber)
-                    .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.BAD_REQUEST,
-                            String.format("Bank account not found with account number: %s", accountNumber)));
-
-            // Check if the current user is an owner of the account
-            boolean isOwner = bankAccount.getUsers().stream()
-                    .anyMatch(user -> user.getId().equals(currentUser.getId()));
-
-
-            // Validate transaction amount
             BigDecimal amount = BigDecimal.valueOf(createTransactionRequest.getAmount());
             if (amount.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new BrclysApiException(BrclysApiErrorType.BAD_REQUEST,
                         "Transaction amount must be greater than zero");
             }
-
-            // Process the transaction based on type
-            TransactionType transactionType = TransactionType.valueOf(createTransactionRequest.getType().toString());
-            BigDecimal newBalance;
-
+            TransactionType transactionType = TransactionType.valueOf(createTransactionRequest.getType().toString().toUpperCase());
             switch (transactionType) {
                 case DEPOSIT:
-                    newBalance = bankAccount.getBalance().add(amount);
-                    break;
-
+                    TransactionResponse transactionResponse = getTransactionResponseObject(transactionRepository.save(createTransactionEntityObject(createTransactionRequest,
+                            amount, transactionType, currentUser, depositToAccount(accountNumber, amount))), currentUser);
+                    return new ResponseEntity<>(transactionResponse, HttpStatus.CREATED);
                 case WITHDRAWAL:
-                    if (!isOwner && !isAdmin(currentUser)) {
-                        throw new BrclysApiException(BrclysApiErrorType.FORBIDDEN,
-                                String.format("User %s is not authorized to create transactions for account %s",
-                                        username, accountNumber));
-                    }
-                    if (bankAccount.getBalance().compareTo(amount) < 0) {
-                        throw new BrclysApiException(BrclysApiErrorType.BAD_REQUEST,
-                                "Insufficient funds for withdrawal");
-                    }
-                    newBalance = bankAccount.getBalance().subtract(amount);
-                    break;
+                    Transaction savedTransaction;
+                    BankAccount bankAccount = bankAccountRepository.findByAccountNumberAndUsersIn(accountNumber,
+                                    Stream.of(currentUser).toList())
+                            .orElseGet(() -> {
+                                if (isAdmin(currentUser)) {
+                                    return bankAccountRepository.findByAccountNumber(accountNumber)
+                                            .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.NOT_FOUND,
+                                                    String.format("Account %s not found", accountNumber)));
+                                } else {
+                                    throw new BrclysApiException(BrclysApiErrorType.FORBIDDEN,
+                                            String.format("User %s is not authorized to withdraw from account %s", username, accountNumber));
+                                }
+                            });
+                    BankAccount bankAccountAfterWithdrawal = withdrawFromAccount(bankAccount, amount);
+                    Transaction transaction = createTransactionEntityObject(createTransactionRequest, amount, transactionType, currentUser, bankAccountAfterWithdrawal);
+                    savedTransaction = transactionRepository.save(transaction);
+                    return new ResponseEntity<>(getTransactionResponseObject(savedTransaction, currentUser), HttpStatus.CREATED);
                 default:
                     throw new BrclysApiException(BrclysApiErrorType.BAD_REQUEST,
                             String.format("Unsupported transaction type: %s", transactionType));
             }
-
-            // Update the account balance
-            bankAccount.setBalance(newBalance);
-            bankAccount.setUpdatedTimestamp(OffsetDateTime.now());
-            bankAccountRepository.save(bankAccount);
-
-            // Create and save the transaction
-            Transaction transaction = new Transaction();
-            transaction.setAmount(amount);
-            transaction.setCurrency(createTransactionRequest.getCurrency().toString());
-            transaction.setType(transactionType);
-            transaction.setReference(createTransactionRequest.getReference());
-            transaction.setUser(currentUser);
-            transaction.setBankAccount(bankAccount);
-            transaction.setCreatedTimestamp(OffsetDateTime.now());
-
-            Transaction savedTransaction = transactionRepository.save(transaction);
-
-            // Build and return the response
-            TransactionResponse response = new TransactionResponse()
-                    .id(savedTransaction.getId())
-                    .amount(savedTransaction.getAmount().doubleValue())
-                    .currency(TransactionResponse.CurrencyEnum.fromValue(savedTransaction.getCurrency()))
-                    .type(TransactionResponse.TypeEnum.fromValue(savedTransaction.getType().toString()))
-                    .reference(savedTransaction.getReference())
-                    .userId(currentUser.getId())
-                    .createdTimestamp(savedTransaction.getCreatedTimestamp());
-
-            return new ResponseEntity<>(response, HttpStatus.CREATED);
 
         } catch (BrclysApiException e) {
             logger.error("Error creating transaction: {}", e.getMessage());
@@ -320,6 +278,52 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
         }
     }
 
+    private BankAccount withdrawFromAccount(BankAccount bankAccount, BigDecimal amount) {
+        if (bankAccount.getBalance().compareTo(amount) < 0) {
+            throw new BrclysApiException(BrclysApiErrorType.BAD_REQUEST,
+                    "Insufficient funds for withdrawal");
+        }
+        BigDecimal newBalance = bankAccount.getBalance().subtract(amount);
+        bankAccount.setBalance(newBalance);
+        bankAccount.setUpdatedTimestamp(OffsetDateTime.now());
+        return bankAccountRepository.save(bankAccount);
+    }
+
+    private BankAccount depositToAccount(String accountNumber, BigDecimal amount) {
+        BigDecimal newBalance;
+        BankAccount bankAccount = bankAccountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.BAD_REQUEST,
+                        String.format("Bank account not found with account number: %s", accountNumber)));
+        newBalance = bankAccount.getBalance().add(amount);
+        bankAccount.setBalance(newBalance);
+        bankAccount.setUpdatedTimestamp(OffsetDateTime.now());
+        return bankAccountRepository.save(bankAccount);
+    }
+
+    private static TransactionResponse getTransactionResponseObject(Transaction savedTransaction, User currentUser) {
+        return new TransactionResponse()
+                .id(savedTransaction.getId())
+                .amount(savedTransaction.getAmount().doubleValue())
+                .currency(TransactionResponse.CurrencyEnum.fromValue(savedTransaction.getCurrency()))
+                .type(TransactionResponse.TypeEnum.fromValue(savedTransaction.getType().toString().toLowerCase()))
+                .reference(savedTransaction.getReference())
+                .userId(currentUser.getId())
+                .createdTimestamp(savedTransaction.getCreatedTimestamp());
+    }
+
+    private static Transaction createTransactionEntityObject(CreateTransactionRequest createTransactionRequest, BigDecimal amount, TransactionType transactionType, User currentUser, BankAccount bankAccount) {
+        Transaction transaction = new Transaction();
+        transaction.setAmount(amount);
+        transaction.setCurrency(createTransactionRequest.getCurrency().toString());
+        transaction.setType(transactionType);
+        transaction.setReference(createTransactionRequest.getReference());
+        transaction.setUser(currentUser);
+        transaction.setBankAccount(bankAccount);
+        transaction.setCreatedTimestamp(OffsetDateTime.now());
+        return transaction;
+    }
+
+    // Not tested manually
     @Override
     @Transactional
     public ResponseEntity<Void> deleteAccountByAccountNumber(String accountNumber) {

@@ -1,5 +1,7 @@
 package com.brclys.thct.errorHandling;
 
+import com.brclys.thct.delegate.exception.BrclysApiErrorType;
+import com.brclys.thct.delegate.exception.BrclysApiException;
 import com.brclys.thct.openApiGenSrc.model.ErrorResponse;
 import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
@@ -33,6 +35,20 @@ public class BrclysApiExceptionHandler extends ResponseEntityExceptionHandler {
         return buildResponseEntity(new BrclysRestApiError(HttpStatus.BAD_REQUEST, error, ex));
     }
 
+    @ExceptionHandler(BrclysApiException.class)
+    protected ResponseEntity<Object> handleCustomException(
+            BrclysApiException ex) {
+        BrclysApiErrorType type = ex.getBarclysApiErrorType();
+        return switch (type) {
+            case BAD_REQUEST ->
+                    buildResponseEntity(new BrclysRestApiError(HttpStatus.BAD_REQUEST, ex.getMessage(), ex));
+            case NOT_FOUND -> buildResponseEntity(new BrclysRestApiError(NOT_FOUND, ex.getMessage(), ex));
+            case FORBIDDEN -> buildResponseEntity(new BrclysRestApiError(HttpStatus.FORBIDDEN, ex.getMessage(), ex));
+            default ->
+                    buildResponseEntity(new BrclysRestApiError(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), ex));
+        };
+
+    }
 
     @ExceptionHandler(RuntimeException.class)
     protected ResponseEntity<Object> handleRuntimeException(
