@@ -20,6 +20,7 @@ The user needs to add an `Authorization: Bearer <token>` header to their request
 
 
 With Swagger, the user may use `/v1/users` endpoint to create a new user.
-Then, the user may use `/v1/auth/login` endpoint to get an access token.
+Then, the user may use `/v1/auth/login` endpoint to get an access token. 
+*Note: The password is the same as the username for now*
 This token can be used to authenticate other endpoints.
 For Swagger: the user can do this by clicking on the `Authorize` button and enter the token in the `Value` field.
