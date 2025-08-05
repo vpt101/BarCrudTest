@@ -2,7 +2,6 @@
 
 ## Key Points
 - Some features are pending testing
-- Unit tests are pending implementation
 
 ## Build
 - Build and run the project using Maven
@@ -14,8 +13,8 @@
 - Swagger UI will be available at http://localhost:8080/swagger-ui.html
 
 ### Auth
-- `/v1/auth/login` and `/v1/users` are not authenticated endpoints 
-The rest of the endpoints are authenticated. 
+- `/v1/auth/login` and `/v1/users` are not authenticated endpoints
+  The rest of the endpoints are authenticated.
 - The user needs to add an `Authorization: Bearer <token>` header to their request to access them.
 - The user may use `/v1/users` endpoint to create a new user
   *Note: The password is the same as the username for now*
