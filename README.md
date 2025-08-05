@@ -1,7 +1,8 @@
 # BarCrudTest
 
-## Key Points
-- Some features are pending testing
+## Areas of improvement
+- The OpenApi generator is in a different project. Ideally it should have been part of this codebase
+- Code in the delegate can be refactored and made more modular.
 
 ## Build
 - Build and run the project using Maven
