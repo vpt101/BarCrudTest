@@ -167,9 +167,7 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
     }
 
     private boolean isAdmin(User user) {
-        // Implement admin check logic here
-        // For now, returning false as we don't have admin roles implemented
-        return false;
+        return user.getUsername().equals("root");
     }
 
     // Partially tested
@@ -343,7 +341,7 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
 
             if (bankAccount.getBalance().compareTo(BigDecimal.ZERO) != 0) {
                 throw new IllegalStateException(
-                        String.format("Cannot delete account %s with non-zero balance: %s",
+                        String.format("Cannot delete account %s with non-zero balance. Current balance: %s",
                                 accountNumber, bankAccount.getBalance()));
             }
             Set<User> users = userRepository.findByBankAccountsIn(new HashSet<>(Collections.singletonList(bankAccount)));
@@ -363,6 +361,9 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
         } catch (BrclysApiException e) {
             logger.warn("Cannot delete account: {}", e.getMessage());
             throw e;
+        } catch (IllegalStateException e) {
+            logger.warn("Attempt to delete account with non-zero balance: {} ", e.getMessage());
+            throw new BrclysApiException(BrclysApiErrorType.BAD_REQUEST, e.getMessage());
         } catch (Exception e) {
             logger.error("Error deleting bank account: {}", e.getMessage(), e);
             throw new RuntimeException("An error occurred while deleting the bank account", e);
