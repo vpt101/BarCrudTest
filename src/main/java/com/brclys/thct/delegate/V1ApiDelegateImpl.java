@@ -317,7 +317,7 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
         return transaction;
     }
 
-    // Not tested manually
+
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResponseEntity<Void> deleteAccountByAccountNumber(String accountNumber) {
@@ -349,7 +349,7 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
             for (User user: users) {
                 logger.warn("Accounts: {}", user.getBankAccounts());
                 user.removeBankAccount(bankAccount);
-                // user.setUpdatedTimestamp(OffsetDateTime.now());
+
                 logger.warn("User's bankAccounts: {}", user.getBankAccounts());
                 userRepository.save(user);
                 userRepository.flush();
@@ -472,7 +472,6 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
 
     @Override
     @Transactional
-    // Not tested manually
     public ResponseEntity<BankAccountResponse> updateAccountByAccountNumber(
             String accountNumber,
             UpdateBankAccountRequest updateBankAccountRequest) {

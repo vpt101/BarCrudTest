@@ -160,6 +160,87 @@ class V1ApiDelegateImplTest {
         assertEquals("deposit", response.getBody().getType().getValue());
         verify(transactionRepository).save(any(Transaction.class));
     }
+
+    @Test
+    void createTransaction_ShouldProcessWithdrawal() {
+        testAccount.setBalance(new BigDecimal("200.00"));
+        
+        CreateTransactionRequest request = new CreateTransactionRequest()
+            .amount(100.0)
+            .currency(CreateTransactionRequest.CurrencyEnum.GBP)
+            .type(CreateTransactionRequest.TypeEnum.WITHDRAWAL)
+            .reference("Test withdrawal");
+
+        when(bankAccountRepository.findByAccountNumberAndUsersIn(TEST_ACCOUNT_NUMBER, List.of(testUser)))
+            .thenReturn(Optional.of(testAccount));
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> {
+            Transaction t = invocation.getArgument(0);
+            t.setId("txn-withdraw-123");
+            return t;
+        });
+
+        ResponseEntity<TransactionResponse> response = v1ApiDelegate.createTransaction(
+            TEST_ACCOUNT_NUMBER, request);
+            
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(100.0, response.getBody().getAmount());
+        assertEquals("withdrawal", response.getBody().getType().getValue());
+        verify(transactionRepository).save(any(Transaction.class));
+        assertEquals(0, new BigDecimal("100.00").compareTo(testAccount.getBalance()));
+    }
+
+    @Test
+    void createTransaction_ShouldRejectInsufficientFunds() {
+        testAccount.setBalance(new BigDecimal("50.00"));
+        
+        CreateTransactionRequest request = new CreateTransactionRequest()
+            .amount(100.0)
+            .currency(CreateTransactionRequest.CurrencyEnum.GBP)
+            .type(CreateTransactionRequest.TypeEnum.WITHDRAWAL)
+            .reference("Test withdrawal");
+
+        when(bankAccountRepository.findByAccountNumberAndUsersIn(TEST_ACCOUNT_NUMBER, List.of(testUser)))
+            .thenReturn(Optional.of(testAccount));
+
+        BrclysApiException exception = assertThrows(BrclysApiException.class, () -> {
+            v1ApiDelegate.createTransaction(TEST_ACCOUNT_NUMBER, request);
+        });
+
+        assertEquals("Bad request: Insufficient funds for withdrawal", exception.getMessage());
+        verify(transactionRepository, never()).save(any(Transaction.class));
+    }
+
+    @Test
+    void createTransaction_ShouldRejectUnauthorizedWithdrawal() {
+        BankAccount otherUserAccount = new BankAccount();
+        otherUserAccount.setAccountNumber("OTHER-ACC-123");
+        otherUserAccount.setBalance(new BigDecimal("200.00"));
+        User otherUser = new User();
+        otherUser.setId("other-user-id");
+        otherUser.setUsername("other-user");
+
+        otherUserAccount.setUsers(Set.of(otherUser));
+        otherUserAccount.setUsers(Set.of(new User()));
+        
+        CreateTransactionRequest request = new CreateTransactionRequest()
+            .amount(100.0)
+            .currency(CreateTransactionRequest.CurrencyEnum.GBP)
+            .type(CreateTransactionRequest.TypeEnum.WITHDRAWAL)
+            .reference("Unauthorized withdrawal");
+
+        // First findByAccountNumberAndUsersIn returns empty (user doesn't own the account)
+        when(bankAccountRepository.findByAccountNumberAndUsersIn("OTHER-ACC-123", List.of(testUser)))
+            .thenReturn(Optional.empty());
+
+        BrclysApiException exception = assertThrows(BrclysApiException.class, () -> {
+            v1ApiDelegate.createTransaction("OTHER-ACC-123", request);
+        });
+
+        assertTrue(exception.getMessage().contains("is not authorized to withdraw from account"));
+        verify(transactionRepository, never()).save(any(Transaction.class));
+    }
+
     @Test
     void listAccountTransaction_ShouldReturnTransactionsForAccount() {
         Transaction transaction = new Transaction();
@@ -184,7 +265,6 @@ class V1ApiDelegateImplTest {
     }
     @Test
     void deleteAccountByAccountNumber_ShouldDeleteAccountWhenBalanceIsZero() {
-        // Test case 1: Regular user with zero balance account they own
         testAccount.setBalance(BigDecimal.ZERO);
         when(bankAccountRepository.findByAccountNumberAndUsersIn(TEST_ACCOUNT_NUMBER, List.of(testUser)))
             .thenReturn(Optional.of(testAccount));
@@ -220,7 +300,6 @@ class V1ApiDelegateImplTest {
     
     @Test
     void deleteAccountByAccountNumber_ShouldThrowExceptionWhenAccountNotFound() {
-        // Test case 3: Account doesn't exist
         when(bankAccountRepository.findByAccountNumberAndUsersIn("NON-EXISTENT", List.of(testUser)))
             .thenReturn(Optional.empty());
         when(bankAccountRepository.findByAccountNumber("NON-EXISTENT"))
@@ -236,7 +315,6 @@ class V1ApiDelegateImplTest {
     
     @Test
     void deleteAccountByAccountNumber_ShouldThrowForbiddenForNonOwnerNonAdmin() {
-        // Test case 4: Regular user tries to delete someone else's account
         BankAccount otherUserAccount = new BankAccount();
         otherUserAccount.setAccountNumber("OTHER-ACC-123");
         otherUserAccount.setUsers(Set.of(new User())); // Different user
@@ -245,7 +323,6 @@ class V1ApiDelegateImplTest {
             .thenReturn(Optional.empty());
         when(bankAccountRepository.findByAccountNumber("OTHER-ACC-123"))
             .thenReturn(Optional.of(otherUserAccount));
-        // User is not admin
         when(userRepository.findByUsername(TEST_USERNAME)).thenReturn(Optional.of(testUser));
         
         BrclysApiException exception = assertThrows(BrclysApiException.class, () -> {
@@ -258,7 +335,6 @@ class V1ApiDelegateImplTest {
     
     @Test
     void deleteAccountByAccountNumber_ShouldThrowWhenBalanceNotZero() {
-        // Test case 5: Account has non-zero balance
         testAccount.setBalance(new BigDecimal("100.00"));
         when(bankAccountRepository.findByAccountNumberAndUsersIn(TEST_ACCOUNT_NUMBER, List.of(testUser)))
             .thenReturn(Optional.of(testAccount));
