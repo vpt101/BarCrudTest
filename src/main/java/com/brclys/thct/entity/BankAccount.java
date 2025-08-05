@@ -2,14 +2,15 @@ package com.brclys.thct.entity;
 
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Pattern;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Set;
 
-@Data
 @Entity
 @Table(name = "bank_accounts")
 @AllArgsConstructor
@@ -28,12 +29,13 @@ public class BankAccount {
     private String sortCode;
 
     @Column(nullable = false, length = 50)
-    private String name; // Name of the branch??? What is this?
+    private String name;
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal balance;
 
     @ManyToMany(mappedBy = "bankAccounts")
+    // @Cascade(org.hibernate.annotations.CascadeType.PERSIST)
     private Set<User> users;
 
     @Column(nullable = false)
@@ -41,4 +43,5 @@ public class BankAccount {
 
     @Column(nullable = false)
     private OffsetDateTime updatedTimestamp;
+
 }

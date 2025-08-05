@@ -1,22 +1,22 @@
 package com.brclys.thct.entity;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Pattern;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.OffsetDateTime;
-import java.util.Date;
 import java.util.Set;
 
-@Data
 @Entity
-@Table(name = "users")
-@AllArgsConstructor
 @Getter
 @Setter
+@Table(name = "users")
 @NoArgsConstructor
+@AllArgsConstructor
 public class User {
     @Id
     // @Pattern(regexp = "^usr-[A-Za-z0-9\\-]$")
@@ -37,9 +37,9 @@ public class User {
     @Column
     private String phoneNumber;
 
-    @ManyToMany
+    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
-            name = "user_bank_account",
+            name = "users_bank_accounts",
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "bank_account_id")
     )
@@ -61,7 +61,11 @@ public class User {
         if (this.id == null) {
             this.id = "usr-" + java.util.UUID.randomUUID().toString().replaceAll("-", "");
         }
+    }
 
+    public void removeBankAccount(BankAccount bankAccount) {
+        this.getBankAccounts().remove(bankAccount);
+        bankAccount.getUsers().remove(this);
     }
 
 }

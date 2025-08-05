@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.NativeWebRequest;
 
@@ -53,15 +54,14 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
 
 
     @Override
-    @Transactional
-
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResponseEntity<BankAccountResponse> createAccount(CreateBankAccountRequest createBankAccountRequest) {
         String token = getBearerAuth();
         String username = jwtUtil.getUsernameFromToken(token);
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.NOT_FOUND, String.format("Username (%s) not found", username)));
 
-        // Create new bank account with the current user
+
         BankAccount bankAccount = new BankAccount();
         bankAccount.setAccountNumber(generateAccountNumber());
         bankAccount.setSortCode(BankAccountResponse.SortCodeEnum._10_10_10.getValue());
@@ -69,18 +69,15 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
         bankAccount.setBalance(BigDecimal.ZERO);
         bankAccount.setCreatedTimestamp(OffsetDateTime.now());
         bankAccount.setUpdatedTimestamp(OffsetDateTime.now());
-        if (bankAccount.getUsers() == null) {
-            bankAccount.setUsers(new HashSet<>());
-        }
 
         BankAccount savedAccount = bankAccountRepository.save(bankAccount);
 
-        if (user.getBankAccounts() == null) {
-            user.setBankAccounts(new HashSet<>());
-        }
-        user.getBankAccounts().add(savedAccount);
-        userRepository.save(user);
-
+        logger.warn("BankAccounts: {}", user.getBankAccounts());
+        user.getBankAccounts().add(bankAccount);
+        // logger.warn("User's bankAccounts: {}", user.getBankAccounts());
+        User savedUser = userRepository.save(user);
+        userRepository.flush();
+        logger.warn("Saved user: {}; bankAccount: {}", savedUser, savedAccount);
         BankAccountResponse response = new BankAccountResponse()
                 .accountNumber(savedAccount.getAccountNumber())
                 .sortCode(BankAccountResponse.SortCodeEnum.fromValue(savedAccount.getSortCode()))
@@ -100,7 +97,6 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
     // Not tested manually
     public ResponseEntity<ListBankAccountsResponse> listAccounts() {
         try {
-            // Get user from JWT token
             String token = getBearerAuth();
             String username = jwtUtil.getUsernameFromToken(token);
             User user = userRepository.findByUsername(username)
@@ -178,7 +174,7 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
 
     // Partially tested
     @Override
-    @Transactional(readOnly = true)
+    // @Transactional(readOnly = true)
     public ResponseEntity<ListTransactionsResponse> listAccountTransaction(String accountNumber) {
         try {
             // Get the current user from the token
@@ -325,37 +321,44 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
 
     // Not tested manually
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResponseEntity<Void> deleteAccountByAccountNumber(String accountNumber) {
         try {
-            // Get the current user from the token
             String username = jwtUtil.getUsernameFromToken(getBearerAuth());
             User currentUser = userRepository.findByUsername(username)
                     .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.NOT_FOUND, String.format("Username (%s) not found", username)));
 
-            // Find the bank account and verify the user has access to it
-            BankAccount bankAccount = bankAccountRepository.findByAccountNumber(accountNumber)
-                    .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.NOT_FOUND, String.format("Bank account not found with account number: %s", accountNumber)));
 
-            // Check if the current user is an owner of the account
-            boolean isOwner = bankAccount.getUsers().stream()
-                    .anyMatch(user -> user.getId().equals(currentUser.getId()));
-
-            if (!isOwner && !isAdmin(currentUser)) {
-                throw new BrclysApiException(BrclysApiErrorType.FORBIDDEN,
-                        String.format("User %s is not authorized to delete account %s", username, accountNumber));
-            }
+            BankAccount bankAccount = bankAccountRepository.findByAccountNumberAndUsersIn(accountNumber, Collections.singletonList(currentUser))
+                    .orElseGet(() -> {
+                        var account =bankAccountRepository.findByAccountNumber(accountNumber)
+                                .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.NOT_FOUND, String.format("Account %s not found", accountNumber)));
+                        if (isAdmin(currentUser)) {
+                            return account;
+                        } else {
+                            throw new BrclysApiException(BrclysApiErrorType.FORBIDDEN,
+                                    String.format("User %s is not authorized to delete account %s", username, accountNumber));
+                        }
+                    });
 
             if (bankAccount.getBalance().compareTo(BigDecimal.ZERO) != 0) {
                 throw new IllegalStateException(
                         String.format("Cannot delete account %s with non-zero balance: %s",
                                 accountNumber, bankAccount.getBalance()));
             }
-            for (User user : bankAccount.getUsers()) {
-                user.getBankAccounts().remove(bankAccount);
+            Set<User> users = userRepository.findByBankAccountsIn(new HashSet<>(Collections.singletonList(bankAccount)));
+            logger.warn("BankAccounts: {}", bankAccount.getUsers());
+            for (User user: users) {
+                logger.warn("Accounts: {}", user.getBankAccounts());
+                user.removeBankAccount(bankAccount);
+                // user.setUpdatedTimestamp(OffsetDateTime.now());
+                logger.warn("User's bankAccounts: {}", user.getBankAccounts());
                 userRepository.save(user);
+                userRepository.flush();
             }
+
             bankAccountRepository.delete(bankAccount);
+
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } catch (BrclysApiException e) {
             logger.warn("Cannot delete account: {}", e.getMessage());
@@ -473,11 +476,9 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
             String accountNumber,
             UpdateBankAccountRequest updateBankAccountRequest) {
 
-        // Get the current user from the token
         String username = jwtUtil.getUsernameFromToken(getBearerAuth());
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
-        // Find the bank account and verify the user has access to it
         BankAccount bankAccount = bankAccountRepository.findByAccountNumberAndUsersIn(accountNumber, Collections.singletonList(user))
                 .orElseThrow(() -> new BrclysApiException(BrclysApiErrorType.NOT_FOUND, String.format("Bank account not found with account number: %s", accountNumber)));
 
@@ -486,8 +487,6 @@ public class V1ApiDelegateImpl implements V1ApiDelegate {
         }
 
         if (updateBankAccountRequest.getAccountType() != null) {
-            // In a real app, you might have logic to handle different account types
-            // For now, we'll just log it as we don't have a direct mapping in the entity
             logger.debug("Account type update requested to: {}", updateBankAccountRequest.getAccountType());
         }
 

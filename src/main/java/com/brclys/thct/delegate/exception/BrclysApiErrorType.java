@@ -1,9 +1,10 @@
 package com.brclys.thct.delegate.exception;
 
 public enum BrclysApiErrorType {
-    NOT_FOUND("User not found"),
+    NOT_FOUND("User or Resource not found"),
     FORBIDDEN("Unauthorized access"),
     BAD_REQUEST("Bad request"),
+    DUPLICATE_USER("User already exists"),
     INTERNAL_SERVER_ERROR("Internal server error");
 
 
